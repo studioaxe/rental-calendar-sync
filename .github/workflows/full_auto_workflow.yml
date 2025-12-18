@@ -42,7 +42,7 @@ jobs:
           EMAIL_ON_ERROR: 'true'
           ERROR_EMAIL: ${{ secrets.ERROR_EMAIL }}
         run: |
-          python sync_calendars_core_v2_3_FINAL.py
+          python sync_calendars.py
           echo "sync_status=success" >> $GITHUB_OUTPUT
         continue-on-error: true
       
