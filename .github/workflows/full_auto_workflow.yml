@@ -1,0 +1,140 @@
+name: Rental Calendar Sync - Full Auto (6h)
+
+on:
+  schedule:
+    # Executa a cada 6 horas (0:00, 6:00, 12:00, 18:00 UTC)
+    - cron: '0 0,6,12,18 * * *'
+  
+  # Permite execução manual
+  workflow_dispatch:
+
+jobs:
+  sync-calendars:
+    runs-on: ubuntu-latest
+    
+    steps:
+      # ==================== SETUP ====================
+      
+      - name: 📥 Checkout Repository
+        uses: actions/checkout@v4
+      
+      - name: 🐍 Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+      
+      - name: 📦 Install Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install icalendar requests python-dotenv pytz
+      
+      # ==================== SINCRONIZAÇÃO ====================
+      
+      - name: 🔄 Run Calendar Sync
+        id: sync
+        env:
+          AIRBNB_ICAL_URL: ${{ secrets.AIRBNB_ICAL_URL }}
+          BOOKING_ICAL_URL: ${{ secrets.BOOKING_ICAL_URL }}
+          VRBO_ICAL_URL: ${{ secrets.VRBO_ICAL_URL }}
+          BUFFER_DAYS_BEFORE: 1
+          BUFFER_DAYS_AFTER: 1
+          OUTPUT_FILE: master_calendar.ics
+          EMAIL_ON_ERROR: 'true'
+          ERROR_EMAIL: ${{ secrets.ERROR_EMAIL }}
+        run: |
+          python sync_calendars_core_v2_3_FINAL.py
+          echo "sync_status=success" >> $GITHUB_OUTPUT
+        continue-on-error: true
+      
+      # ==================== UPLOAD ====================
+      
+      - name: 📤 Upload master_calendar.ics to GitHub
+        if: steps.sync.outcome == 'success'
+        uses: actions/upload-artifact@v3
+        with:
+          name: master_calendar
+          path: master_calendar.ics
+          retention-days: 30
+      
+      - name: 📊 Upload sync.log
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: sync_logs
+          path: sync.log
+          retention-days: 30
+      
+      # ==================== EMAIL SUCESSO ====================
+      
+      - name: 📧 Send Success Email
+        if: steps.sync.outcome == 'success'
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: ${{ secrets.EMAIL_SERVER }}
+          server_port: ${{ secrets.EMAIL_PORT }}
+          username: ${{ secrets.EMAIL_USER }}
+          password: ${{ secrets.EMAIL_PASSWORD }}
+          subject: '✅ Sincronização Calendários Completa'
+          to: ${{ secrets.NOTIFICATION_EMAIL }}
+          from: ${{ secrets.EMAIL_USER }}
+          body: |
+            Sincronização de calendários concluída com sucesso!
+            
+            ✅ Status: OK
+            📅 Data: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+            ⏰ Timestamp: $(date)
+            
+            📊 Eventos processados:
+            • Airbnb: ✅
+            • Booking: ✅
+            • Vrbo: ✅
+            
+            📁 Ficheiro: master_calendar.ics (disponível em Artifacts)
+            
+            Próximo passo: Importar em todas as plataformas
+      
+      # ==================== EMAIL ERRO ====================
+      
+      - name: 📧 Send Error Email
+        if: steps.sync.outcome == 'failure'
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: ${{ secrets.EMAIL_SERVER }}
+          server_port: ${{ secrets.EMAIL_PORT }}
+          username: ${{ secrets.EMAIL_USER }}
+          password: ${{ secrets.EMAIL_PASSWORD }}
+          subject: '❌ Erro na Sincronização Calendários'
+          to: ${{ secrets.NOTIFICATION_EMAIL }}
+          from: ${{ secrets.EMAIL_USER }}
+          body: |
+            Erro detectado na sincronização de calendários!
+            
+            ❌ Status: ERRO
+            🔗 Link: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+            ⏰ Timestamp: $(date)
+            
+            📋 Verifique o log para detalhes:
+            
+            ---LOG---
+            $(cat sync.log)
+            ---END---
+            
+            ⚠️ Ação necessária: Verifique URLs e configurações
+          attachments: sync.log
+      
+      # ==================== ESTATÍSTICAS ====================
+      
+      - name: 📈 Log Statistics
+        if: always()
+        run: |
+          echo "=== SINCRONIZAÇÃO STATISTICS ==="
+          echo "Timestamp: $(date)"
+          echo "Status: ${{ steps.sync.outcome }}"
+          echo "Run ID: ${{ github.run_id }}"
+          echo ""
+          echo "=== LOG SUMMARY ==="
+          tail -20 sync.log || echo "Sem log disponível"
+          echo ""
+          echo "=== FICHEIROS GERADOS ==="
+          ls -lh master_calendar.ics 2>/dev/null || echo "Sem ficheiro ICS"
+          ls -lh sync.log 2>/dev/null || echo "Sem sync.log"
