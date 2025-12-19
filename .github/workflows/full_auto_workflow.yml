@@ -4,32 +4,31 @@ on:
   schedule:
     # Executa a cada 6 horas (0:00, 6:00, 12:00, 18:00 UTC)
     - cron: '0 0,6,12,18 * * *'
-  
   # Permite execução manual
   workflow_dispatch:
 
 jobs:
   sync-calendars:
     runs-on: ubuntu-latest
-    
+
     steps:
       # ==================== SETUP ====================
-      
+
       - name: 📥 Checkout Repository
         uses: actions/checkout@v4
-      
+
       - name: 🐍 Setup Python
         uses: actions/setup-python@v4
         with:
           python-version: '3.11'
-      
+
       - name: 📦 Install Dependencies
         run: |
           python -m pip install --upgrade pip
           pip install icalendar requests python-dotenv pytz
-      
+
       # ==================== SINCRONIZAÇÃO ====================
-      
+
       - name: 🔄 Run Calendar Sync
         id: sync
         env:
@@ -45,9 +44,9 @@ jobs:
           python scripts/sync_calendars.py
           echo "sync_status=success" >> $GITHUB_OUTPUT
         continue-on-error: true
-      
+
       # ==================== UPLOAD ====================
-      
+
       - name: 📤 Upload master_calendar.ics to GitHub
         if: steps.sync.outcome == 'success'
         uses: actions/upload-artifact@v4
@@ -55,7 +54,7 @@ jobs:
           name: master_calendar
           path: master_calendar.ics
           retention-days: 30
-      
+
       - name: 📊 Upload sync.log
         if: always()
         uses: actions/upload-artifact@v4
@@ -63,9 +62,29 @@ jobs:
           name: sync_logs
           path: sync.log
           retention-days: 30
-      
+
+      # ==================== GIT COMMIT ====================
+
+      - name: 🔧 Configure Git
+        if: steps.sync.outcome == 'success'
+        run: |
+          git config --global user.name "GitHub Actions"
+          git config --global user.email "actions@github.com"
+
+      - name: 📝 Commit and Push master_calendar.ics
+        if: steps.sync.outcome == 'success'
+        run: |
+          if [ -f master_calendar.ics ]; then
+            git add master_calendar.ics
+            git commit -m "🗓️ Auto-sync: master_calendar.ics atualizado - $(date '+%d/%m/%Y %H:%M:%S')" || echo "Sem mudanças para commit"
+            git push origin main
+            echo "✅ master_calendar.ics committed e pushed com sucesso!"
+          else
+            echo "⚠️ Ficheiro master_calendar.ics não encontrado"
+          fi
+
       # ==================== EMAIL SUCESSO ====================
-      
+
       - name: 📧 Send Success Email
         if: steps.sync.outcome == 'success'
         uses: dawidd6/action-send-mail@v3
@@ -79,22 +98,31 @@ jobs:
           from: ${{ secrets.EMAIL_USER }}
           body: |
             Sincronização de calendários concluída com sucesso!
-            
+
             ✅ Status: OK
-            📅 Data: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-            ⏰ Timestamp: $(date)
-            
+            📅 Data: $(date '+%d/%m/%Y às %H:%M:%S')
+            ⏰ Timestamp: $(date -u +%Y-%m-%dT%H:%M:%SZ)
+
             📊 Eventos processados:
             • Airbnb: ✅
             • Booking: ✅
             • Vrbo: ✅
-            
-            📁 Ficheiro: master_calendar.ics (disponível em Artifacts)
-            
-            Próximo passo: Importar em todas as plataformas
-      
+
+            📁 Ficheiro: master_calendar.ics
+            └─ Agora disponível no repositório (branch main)
+
+            🔗 Link do Repositório:
+            ${{ github.server_url }}/${{ github.repository }}
+
+            📋 Detalhes da Execução:
+            Run ID: ${{ github.run_id }}
+            Branch: main
+            Commit: ${{ github.sha }}
+
+            Próximo passo: Sincronizar com as plataformas de reserva
+
       # ==================== EMAIL ERRO ====================
-      
+
       - name: 📧 Send Error Email
         if: steps.sync.outcome == 'failure'
         uses: dawidd6/action-send-mail@v3
@@ -108,27 +136,28 @@ jobs:
           from: ${{ secrets.EMAIL_USER }}
           body: |
             Erro detectado na sincronização de calendários!
-            
+
             ❌ Status: ERRO
+            📅 Data: $(date '+%d/%m/%Y às %H:%M:%S')
+            ⏰ Timestamp: $(date -u +%Y-%m-%dT%H:%M:%SZ)
+
             🔗 Link: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-            ⏰ Timestamp: $(date)
-            
+
             📋 Verifique o log para detalhes:
-            
+
             ---LOG---
-            $(cat sync.log)
+            $(cat sync.log 2>/dev/null || echo "Log não disponível")
             ---END---
-            
+
             ⚠️ Ação necessária: Verifique URLs e configurações
-          attachments: sync.log
-      
+
       # ==================== ESTATÍSTICAS ====================
-      
+
       - name: 📈 Log Statistics
         if: always()
         run: |
           echo "=== SINCRONIZAÇÃO STATISTICS ==="
-          echo "Timestamp: $(date)"
+          echo "Data/Hora: $(date '+%d/%m/%Y %H:%M:%S')"
           echo "Status: ${{ steps.sync.outcome }}"
           echo "Run ID: ${{ github.run_id }}"
           echo ""
