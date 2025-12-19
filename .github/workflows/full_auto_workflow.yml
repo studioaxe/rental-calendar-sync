@@ -83,6 +83,16 @@ jobs:
             echo "⚠️ Ficheiro master_calendar.ics não encontrado"
           fi
 
+      # ==================== PREPARAR VARIÁVEIS PARA EMAIL ====================
+
+      - name: 📅 Set Date/Timestamp Variables
+        id: datetime
+        if: steps.sync.outcome == 'success'
+        run: |
+          echo "current_date=$(date '+%d/%m/%Y às %H:%M:%S')" >> $GITHUB_OUTPUT
+          echo "current_timestamp=$(date -u '+%Y-%m-%dT%H:%M:%SZ')" >> $GITHUB_OUTPUT
+          echo "run_url=${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" >> $GITHUB_OUTPUT
+
       # ==================== EMAIL SUCESSO ====================
 
       - name: 📧 Send Success Email
@@ -100,8 +110,8 @@ jobs:
             Sincronização de calendários concluída com sucesso!
 
             ✅ Status: OK
-            📅 Data: $(date '+%d/%m/%Y às %H:%M:%S')
-            ⏰ Timestamp: $(date -u +%Y-%m-%dT%H:%M:%SZ)
+            📅 Data: ${{ steps.datetime.outputs.current_date }}
+            ⏰ Timestamp: ${{ steps.datetime.outputs.current_timestamp }}
 
             📊 Eventos processados:
             • Airbnb: ✅
@@ -109,7 +119,7 @@ jobs:
             • Vrbo: ✅
 
             📁 Ficheiro: master_calendar.ics
-            └─ Agora disponível no repositório (branch main)
+            └─ Atualizado online
 
             🔗 Link do Repositório:
             ${{ github.server_url }}/${{ github.repository }}
@@ -119,9 +129,17 @@ jobs:
             Branch: main
             Commit: ${{ github.sha }}
 
-            Próximo passo: Sincronizar com as plataformas de reserva
+            Próximo passo: Sincronização com as plataformas de reserva (Automático)
 
       # ==================== EMAIL ERRO ====================
+
+      - name: 📅 Set Date/Timestamp Variables (Error)
+        id: datetime_error
+        if: steps.sync.outcome == 'failure'
+        run: |
+          echo "current_date=$(date '+%d/%m/%Y às %H:%M:%S')" >> $GITHUB_OUTPUT
+          echo "current_timestamp=$(date -u '+%Y-%m-%dT%H:%M:%SZ')" >> $GITHUB_OUTPUT
+          echo "run_url=${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" >> $GITHUB_OUTPUT
 
       - name: 📧 Send Error Email
         if: steps.sync.outcome == 'failure'
@@ -138,10 +156,10 @@ jobs:
             Erro detectado na sincronização de calendários!
 
             ❌ Status: ERRO
-            📅 Data: $(date '+%d/%m/%Y às %H:%M:%S')
-            ⏰ Timestamp: $(date -u +%Y-%m-%dT%H:%M:%SZ)
+            📅 Data: ${{ steps.datetime_error.outputs.current_date }}
+            ⏰ Timestamp: ${{ steps.datetime_error.outputs.current_timestamp }}
 
-            🔗 Link: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+            🔗 Link: ${{ steps.datetime_error.outputs.run_url }}
 
             📋 Verifique o log para detalhes:
 
