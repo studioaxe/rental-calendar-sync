@@ -13,4 +13,5 @@ __pycache__/
 *$py.class
 
 # Generated files
+import_calendar.ics
 master_calendar.ics
