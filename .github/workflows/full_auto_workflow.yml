@@ -118,8 +118,7 @@ jobs:
             • Booking: ✅
             • Vrbo: ✅
 
-            📁 Ficheiro: master_calendar.ics
-            └─ Atualizado online
+            📁 Ficheiros Atualizados Online
 
             🔗 Link do Repositório:
             ${{ github.server_url }}/${{ github.repository }}
@@ -129,7 +128,7 @@ jobs:
             Branch: main
             Commit: ${{ github.sha }}
 
-            Próximo passo: Sincronização com as plataformas de reserva (Automático)
+            Próximo passo: Aguardar sincronização automática das plataformas de reserva
 
       # ==================== EMAIL ERRO ====================
 

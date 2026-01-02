@@ -1,2 +1,3 @@
 # rental-calendar-sync
-Calendário Master - Reservas
+Sistema Sync de Calendário de Plataformas Rental
+Desenvolvido por PBrandão
